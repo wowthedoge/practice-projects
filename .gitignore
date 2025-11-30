@@ -1,0 +1,40 @@
+# Build artifacts and temporary files
+tmp/
+*.log
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+package-lock.json
+bun.lockb
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.out
+vendor/
+
+# Media
+*.mp4
+*.mov
+*.avi
