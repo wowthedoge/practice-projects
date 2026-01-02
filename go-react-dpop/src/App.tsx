@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import * as indexeddb from "./indexeddb";
+import { generateAndSaveKeyPair, createDPoPProof } from "./dpopUtil";
 
 const API_URL = "http://localhost:8080";
 
@@ -23,34 +23,6 @@ function App() {
     useState<ProtectedDataResponse | null>(null);
   const [error, setError] = useState<string>("");
 
-  const generateKeyPair = async (): Promise<CryptoKeyPair> => {
-    console.log("Generating keypair...")
-    const keyPair = await crypto.subtle.generateKey(
-      {
-        name: "ECDSA",
-        namedCurve: "P-256",
-      },
-      false,
-      ["sign", "verify"]
-    );
-    const publicKeyJwk = await crypto.subtle.exportKey(
-      "jwk",
-      keyPair.publicKey
-    );
-    console.log("Public key JWK:", publicKeyJwk);
-    console.log("Try export private key:");
-    try {
-      const privateKeyJwk = await crypto.subtle.exportKey(
-        "jwk",
-        keyPair.privateKey
-      );
-    } catch (e) {
-      console.log(e);
-    }
-    indexeddb.saveKeyPair(keyPair);
-    return keyPair;
-  };
-
   // Login and get token
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -58,12 +30,18 @@ function App() {
     setProtectedData(null);
 
     try {
-      await generateKeyPair();
-      
+      await generateAndSaveKeyPair();
+
+      const url = `${API_URL}/token`
+      const method = "POST"
+
+      const dpopProof = await createDPoPProof(method, url)
+
       const response = await fetch(`${API_URL}/token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "DPoP": dpopProof,
         },
         body: JSON.stringify({ username, password }),
       });

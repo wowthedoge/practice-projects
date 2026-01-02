@@ -1,18 +1,25 @@
+import { openDB, type IDBPDatabase } from "idb";
+
 const DB_NAME = "dpop-auth";
 const STORE_NAME = "dpop-keys";
-const KEY_ID = "dpop-keypair"
+const KEY_ID = "dpop-keypair";
 
-export function saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open("dpop-auth");
-    request.onupgradeneeded = () =>
-      request.result.createObjectStore(STORE_NAME);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const tx = request.result.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).put(keyPair, KEY_ID);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    };
+function getDB(): Promise<IDBPDatabase> {
+  return openDB(DB_NAME, 1, {
+    upgrade(db) {
+      db.createObjectStore(STORE_NAME);
+    },
   });
+}
+
+export async function saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
+  const db = await getDB();
+  await db.put(STORE_NAME, keyPair, KEY_ID);
+}
+
+export async function getKeyPair(): Promise<CryptoKeyPair | undefined> {
+  const db = await getDB();
+  const keyPair = await db.get(STORE_NAME, KEY_ID);
+  if (!keyPair) return undefined;
+  return keyPair;
 }
