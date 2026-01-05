@@ -65,7 +65,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/protected`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `DPoP ${token}`,
         },
       });
 

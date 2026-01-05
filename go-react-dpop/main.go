@@ -27,14 +27,14 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"http://localhost:5173"},
 		AllowMethods: []string{"GET", "POST", "OPTIONS"},
-		AllowHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowHeaders: []string{"Accept", "Authorization", "Content-Type", "DPoP"},
 	}))
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "oAuth2 demo"})
 	})
-	r.POST("/token", tokenHandler)
-	r.GET("/protected", authMiddleware(), protectedHandler)
+	r.POST("/token", ValidateDPoPMiddleware(), tokenHandler)
+	r.GET("/protected", ValidateDPoPMiddleware(), AuthMiddleware(), protectedHandler)
 
 	r.Run(":8080")
 }
@@ -53,10 +53,14 @@ func tokenHandler(c *gin.Context) {
 		return
 	}
 
-	claims := jwt.RegisteredClaims{
-		Subject:   req.Username,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	jkt := c.GetString("dpop_jkt")
+	claims := jwt.MapClaims{
+		"sub": req.Username,
+		"exp": jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+		"iat": jwt.NewNumericDate(time.Now()),
+		"cnf": map[string]string{
+			"jkt": jkt,
+		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -68,32 +72,55 @@ func tokenHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, TokenResponse{
 		AccessToken: accessToken,
-		TokenType:   "Bearer",
+		TokenType:   "DPoP",
 		ExpiresIn:   3600,
 	})
 }
 
-func authMiddleware() gin.HandlerFunc {
+func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid access token"})
+		if !strings.HasPrefix(authHeader, "DPoP ") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Expected DPoP auth scheme"})
+			c.Abort()
+			return
 		}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		tokenString := strings.TrimPrefix(authHeader, "DPoP ")
 
-		claims := jwt.RegisteredClaims{}
+		// Validate token
+		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(_ *jwt.Token) (interface{}, error) {
 			return jwtSecret, nil
 		})
-
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
 
-		c.Set("userId", claims.Subject)
+		// Validate DPoP
+		cnf, ok := claims["cnf"].(map[string]interface{})
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token missing cnf claim"})
+			c.Abort()
+			return
+		}
+		tokenJkt, ok := cnf["jkt"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token missing jkt in cnf"})
+			c.Abort()
+			return
+		}
+
+		dpopJkt := c.GetString("dpop_jkt")
+		if tokenJkt != dpopJkt {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "DPoP key mismatch"})
+			c.Abort()
+			return
+		}
+
+		c.Set("userId", claims["sub"])
 		c.Next()
 	}
 }
@@ -105,5 +132,4 @@ func protectedHandler(c *gin.Context) {
 		"data":    "protecteddata123",
 		"userId":  userId,
 	})
-
 }
