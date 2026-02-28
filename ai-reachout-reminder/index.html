@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connections</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 960px; margin: 0 auto; }
+
+    header { margin-bottom: 2rem; }
+    header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
+    header p { color: #94a3b8; margin-top: 0.25rem; font-size: 0.95rem; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid #334155;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-name { font-size: 1.2rem; font-weight: 600; color: #f1f5f9; }
+
+    .card-phone {
+      display: inline-block;
+      margin-top: 0.35rem;
+      font-size: 0.85rem;
+      color: #60a5fa;
+      text-decoration: none;
+    }
+    .card-phone:hover { text-decoration: underline; }
+
+    .card-summary {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    .events { margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+    .event-badge {
+      font-size: 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 20px;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .event-birthday {
+      background: #7c3aed22;
+      color: #a78bfa;
+      border: 1px solid #7c3aed44;
+    }
+
+    .event-other {
+      background: #0ea5e922;
+      color: #67e8f9;
+      border: 1px solid #0ea5e944;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: #64748b;
+      font-size: 1.1rem;
+    }
+
+    .loading { text-align: center; padding: 4rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Connections</h1>
+      <p id="count"></p>
+    </header>
+    <div id="app" class="loading">Loading...</div>
+  </div>
+  <script>
+    fetch('/connections')
+      .then(r => r.json())
+      .then(data => {
+        const app = document.getElementById('app');
+        const count = document.getElementById('count');
+
+        if (!data.length) {
+          app.className = 'empty';
+          app.textContent = 'No connections yet. Send a WhatsApp message to add one!';
+          count.textContent = '0 connections';
+          return;
+        }
+
+        count.textContent = data.length + ' connection' + (data.length === 1 ? '' : 's');
+        app.className = 'grid';
+        app.innerHTML = data.map(c => {
+          const phone = c.phone
+            ? `<a class="card-phone" href="tel:${c.phone}">${c.phone}</a>`
+            : '';
+
+          const events = (c.events || []).map(e => {
+            const d = new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const cls = e.name.toLowerCase() === 'birthday' ? 'event-birthday' : 'event-other';
+            return `<span class="event-badge ${cls}">${e.name} &middot; ${d}</span>`;
+          }).join('');
+
+          return `
+            <div class="card">
+              <div class="card-name">${c.name}</div>
+              ${phone}
+              <div class="card-summary">${c.summary}</div>
+              ${events ? `<div class="events">${events}</div>` : ''}
+            </div>`;
+        }).join('');
+      })
+      .catch(() => {
+        document.getElementById('app').textContent = 'Failed to load connections.';
+      });
+  </script>
+</body>
+</html>

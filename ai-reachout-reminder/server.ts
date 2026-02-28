@@ -1,12 +1,18 @@
 import { createServer } from "http";
 import { URLSearchParams } from "url";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
-import { addConnection } from "./store.js";
+import { addConnection, loadConnections } from "./store.js";
 import { parseConnection } from "./parse.js";
 import { sendWhatsApp } from "./whatsapp.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const client = new Anthropic();
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const HTML_PAGE = readFileSync(join(__dirname, "index.html"), "utf-8");
 
 const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/add") {
@@ -68,6 +74,28 @@ const server = createServer(async (req, res) => {
 
     res.writeHead(200);
     res.end();
+    return;
+  }
+
+  // API: list all connections
+  if (req.method === "GET" && req.url === "/connections") {
+    try {
+      const connections = await loadConnections();
+      const safe = connections.map(({ _id, ...rest }) => rest);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(safe, null, 2));
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Error loading connections:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to load connections" }));
+    }
+    return;
+  }
+
+  // Web UI
+  if (req.method === "GET" && req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(HTML_PAGE);
     return;
   }
 
