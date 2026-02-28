@@ -169,6 +169,65 @@
     }
 
     .hidden { display: none; }
+
+    /* Message area */
+    .card-actions { margin-top: 1rem; }
+
+    .btn-sm {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-generate {
+      background: #7c3aed;
+      color: #fff;
+    }
+    .btn-generate:hover { background: #6d28d9; }
+    .btn-generate:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    .btn-send {
+      background: #10b981;
+      color: #fff;
+      margin-left: 0.5rem;
+    }
+    .btn-send:hover { background: #059669; }
+    .btn-send:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    .message-area {
+      margin-top: 0.75rem;
+      display: none;
+    }
+
+    .message-area textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 0.6rem 0.8rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-family: inherit;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .message-area textarea:focus { border-color: #3b82f6; }
+
+    .message-status {
+      font-size: 0.8rem;
+      margin-top: 0.4rem;
+      color: #10b981;
+    }
+
+    .message-status.error { color: #f87171; }
   </style>
 </head>
 <body>
@@ -327,7 +386,7 @@
 
           count.textContent = data.length + ' connection' + (data.length === 1 ? '' : 's');
           app.className = 'grid';
-          app.innerHTML = data.map(c => {
+          app.innerHTML = data.map((c, i) => {
             const phone = c.phone
               ? `<a class="card-phone" href="tel:${c.phone}">${c.phone}</a>`
               : '';
@@ -344,8 +403,90 @@
                 ${phone}
                 <div class="card-summary">${c.summary}</div>
                 ${events ? `<div class="events">${events}</div>` : ''}
+                <div class="card-actions">
+                  <button class="btn-sm btn-generate" data-idx="${i}">Generate message</button>
+                  <button class="btn-sm btn-send" data-idx="${i}" disabled>Send to me</button>
+                </div>
+                <div class="message-area" id="msg-area-${i}">
+                  <textarea id="msg-text-${i}"></textarea>
+                  <div class="message-status" id="msg-status-${i}"></div>
+                </div>
               </div>`;
           }).join('');
+
+          // Store data for JS handlers
+          window._connections = data;
+
+          // Generate button handlers
+          app.querySelectorAll('.btn-generate').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const idx = btn.dataset.idx;
+              const c = window._connections[idx];
+              const area = document.getElementById('msg-area-' + idx);
+              const textarea = document.getElementById('msg-text-' + idx);
+              const sendBtn = app.querySelector(`.btn-send[data-idx="${idx}"]`);
+              const status = document.getElementById('msg-status-' + idx);
+
+              btn.disabled = true;
+              btn.textContent = 'Generating...';
+              status.textContent = '';
+              area.style.display = 'block';
+
+              try {
+                const res = await fetch('/generate-message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: c.name,
+                    summary: c.summary,
+                    event: c.events?.[0] || null,
+                  }),
+                });
+                if (!res.ok) throw new Error('Failed');
+                const { message } = await res.json();
+                textarea.value = message;
+                sendBtn.disabled = false;
+              } catch {
+                status.textContent = 'Failed to generate message';
+                status.className = 'message-status error';
+              } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate message';
+              }
+            });
+          });
+
+          // Send button handlers
+          app.querySelectorAll('.btn-send').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const idx = btn.dataset.idx;
+              const textarea = document.getElementById('msg-text-' + idx);
+              const status = document.getElementById('msg-status-' + idx);
+              const message = textarea.value.trim();
+              if (!message) return;
+
+              btn.disabled = true;
+              btn.textContent = 'Sending...';
+              status.textContent = '';
+
+              try {
+                const res = await fetch('/send-message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ message }),
+                });
+                if (!res.ok) throw new Error('Failed');
+                status.textContent = 'Sent to your WhatsApp!';
+                status.className = 'message-status';
+              } catch {
+                status.textContent = 'Failed to send';
+                status.className = 'message-status error';
+              } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send to me';
+              }
+            });
+          });
         })
         .catch(() => {
           app.innerHTML = '<div class="empty">Failed to load connections.</div>';

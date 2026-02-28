@@ -172,6 +172,58 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // --- POST /generate-message (requires auth) ---
+  if (req.method === "POST" && req.url === "/generate-message") {
+    const token = getCookie(req, "session");
+    const session = token ? await getSession(token) : null;
+    if (!session) { jsonResponse(res, 401, { error: "Not authenticated" }); return; }
+
+    try {
+      const { name, summary, event } = JSON.parse(await readBody(req));
+      const prompt = `Craft a short, warm, personalized text message to a connection.
+
+Connection: ${name}
+Context about them: ${summary}
+${event ? `Recent event: ${event.name} on ${new Date(event.date).toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : ""}
+${event?.summary ? `Event details: ${event.summary}` : ""}
+
+Write a brief, natural text message (2-3 sentences max). The tone should be casual and genuine, not salesy. Do not include any subject line or greeting like "Hi [name]" — just the message body.`;
+
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 256,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const message = response.content[0].type === "text" ? response.content[0].text : "";
+      jsonResponse(res, 200, { message });
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Generate message error:`, err);
+      jsonResponse(res, 500, { error: "Failed to generate message" });
+    }
+    return;
+  }
+
+  // --- POST /send-message (requires auth, sends to logged-in user) ---
+  if (req.method === "POST" && req.url === "/send-message") {
+    const token = getCookie(req, "session");
+    const session = token ? await getSession(token) : null;
+    if (!session) { jsonResponse(res, 401, { error: "Not authenticated" }); return; }
+
+    try {
+      const { message } = JSON.parse(await readBody(req));
+      if (!message) { jsonResponse(res, 400, { error: "Message required" }); return; }
+
+      const sid = await sendWhatsApp(session.phone, message);
+      console.log(`[${new Date().toISOString()}] Sent message to ${session.phone} (${sid})`);
+      jsonResponse(res, 200, { ok: true, sid });
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Send message error:`, err);
+      jsonResponse(res, 500, { error: "Failed to send message" });
+    }
+    return;
+  }
+
   // --- GET /connections (requires auth) ---
   if (req.method === "GET" && req.url === "/connections") {
     const token = getCookie(req, "session");
