@@ -29,7 +29,9 @@ export async function parseConnection(
     messages: [{ role: "user", content: text }],
   });
 
-  const raw =
+  let raw =
     response.content[0].type === "text" ? response.content[0].text : "{}";
+  // Strip markdown code fences if present
+  raw = raw.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   return JSON.parse(raw);
 }
