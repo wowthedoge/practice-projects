@@ -1,7 +1,9 @@
 import { createServer } from "http";
+import { URLSearchParams } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import { addConnection } from "./store.js";
 import { parseConnection } from "./parse.js";
+import { sendWhatsApp } from "./whatsapp.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const client = new Anthropic();
@@ -24,18 +26,48 @@ const server = createServer(async (req, res) => {
       const parsed = await parseConnection(client, text);
       const saved = await addConnection(parsed);
       console.log(`[${new Date().toISOString()}] Saved: ${saved.name} (${saved._id})`);
+      const { _id, ...rest } = saved;
       res.writeHead(201, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(saved, null, 2));
+      res.end(JSON.stringify(rest, null, 2));
     } catch (err) {
       console.error(`[${new Date().toISOString()}] Error:`, err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
-        JSON.stringify({
-          error: "Failed to parse",
-          details: String(err),
-        })
+        JSON.stringify({ error: "Failed to process connection" })
       );
     }
+    return;
+  }
+
+  // WhatsApp webhook — Twilio sends form-encoded POST
+  if (req.method === "POST" && req.url === "/webhook") {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    const params = new URLSearchParams(Buffer.concat(chunks).toString());
+
+    const body = params.get("Body") || "";
+    const from = params.get("From") || ""; // e.g. "whatsapp:+1234567890"
+
+    console.log(`[${new Date().toISOString()}] WhatsApp from ${from}: "${body.slice(0, 80)}${body.length > 80 ? "..." : ""}"`);
+
+    if (!body.trim()) {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    try {
+      const parsed = await parseConnection(client, body);
+      const saved = await addConnection(parsed);
+      console.log(`[${new Date().toISOString()}] Saved: ${saved.name} (${saved._id})`);
+      await sendWhatsApp(from, `Saved ${saved.name}!`);
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Webhook error:`, err);
+      await sendWhatsApp(from, "Sorry, I couldn't parse that. Try again with a description of your connection.").catch(() => {});
+    }
+
+    res.writeHead(200);
+    res.end();
     return;
   }
 

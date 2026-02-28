@@ -12,7 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "mongodb": "^6.21.0"
+    "mongodb": "^6.21.0",
+    "twilio": "^5.12.2"
   },
   "devDependencies": {
     "@types/node": "^25.3.2",

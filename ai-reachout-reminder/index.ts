@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConnections, closeDb } from "./store.js";
+import { sendWhatsApp } from "./whatsapp.js";
 import type { Connection, Reminder } from "./types.js";
 
 // Find events that need a reachout today.
@@ -89,6 +90,19 @@ async function main() {
 
     const message = await craftMessage(client, reminder);
     console.log(`\n💬 Suggested message:\n   "${message}"`);
+
+    if (connection.phone) {
+      const to = `whatsapp:${connection.phone.startsWith("+") ? "" : "+"}${connection.phone}`;
+      try {
+        const sid = await sendWhatsApp(to, message);
+        console.log(`✅ Sent via WhatsApp (${sid})`);
+      } catch (err) {
+        console.error(`❌ WhatsApp send failed:`, err);
+      }
+    } else {
+      console.log("⚠️  No phone number — skipping WhatsApp");
+    }
+
     console.log("\n" + "─".repeat(60));
   }
 }
