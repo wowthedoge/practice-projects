@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { loadConnections, closeDb } from "./store.js";
+import { loadAllConnections, closeDb } from "./store.js";
 import { sendWhatsApp } from "./whatsapp.js";
 import type { Connection, Reminder } from "./types.js";
 
@@ -62,7 +62,7 @@ Write a brief, natural text message (2-3 sentences max). ${reminder.daysSince ==
 
 // Main
 async function main() {
-  const connections = await loadConnections();
+  const connections = await loadAllConnections();
   const reminders = findReachouts(connections);
 
   if (reminders.length === 0) {

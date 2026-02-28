@@ -17,10 +17,91 @@
 
     .container { max-width: 960px; margin: 0 auto; }
 
-    header { margin-bottom: 2rem; }
+    header { margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
     header h1 { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
     header p { color: #94a3b8; margin-top: 0.25rem; font-size: 0.95rem; }
+    .header-left { flex: 1; }
 
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #334155;
+    }
+    .btn-ghost:hover { background: #1e293b; color: #e2e8f0; }
+
+    /* Login */
+    .login-card {
+      max-width: 380px;
+      margin: 4rem auto;
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid #334155;
+    }
+
+    .login-card h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+    }
+
+    .login-card p {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-group { margin-bottom: 1rem; }
+
+    .input-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 0.35rem;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .input-group input:focus { border-color: #3b82f6; }
+
+    .login-error {
+      color: #f87171;
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+      display: none;
+    }
+
+    .login-card .btn { width: 100%; margin-top: 0.5rem; }
+
+    /* Grid */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -87,56 +168,189 @@
       font-size: 1.1rem;
     }
 
-    .loading { text-align: center; padding: 4rem; color: #64748b; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Connections</h1>
-      <p id="count"></p>
-    </header>
-    <div id="app" class="loading">Loading...</div>
+    <!-- Login -->
+    <div id="login-view">
+      <div class="login-card">
+        <h2>Sign in</h2>
+        <p>Enter your phone number to receive a verification code via WhatsApp.</p>
+
+        <div id="phone-step">
+          <div class="input-group">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" placeholder="+1 555 123 4567">
+          </div>
+          <div id="phone-error" class="login-error"></div>
+          <button id="send-code-btn" class="btn btn-primary">Send code</button>
+        </div>
+
+        <div id="code-step" class="hidden">
+          <div class="input-group">
+            <label for="code">Verification code</label>
+            <input type="text" id="code" placeholder="123456" maxlength="6">
+          </div>
+          <div id="code-error" class="login-error"></div>
+          <button id="verify-btn" class="btn btn-primary">Verify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard-view" class="hidden">
+      <header>
+        <div class="header-left">
+          <h1>Connections</h1>
+          <p id="count"></p>
+        </div>
+        <button id="logout-btn" class="btn btn-ghost">Log out</button>
+      </header>
+      <div id="app"></div>
+    </div>
   </div>
+
   <script>
-    fetch('/connections')
-      .then(r => r.json())
-      .then(data => {
-        const app = document.getElementById('app');
-        const count = document.getElementById('count');
+    const loginView = document.getElementById('login-view');
+    const dashboardView = document.getElementById('dashboard-view');
+    const phoneStep = document.getElementById('phone-step');
+    const codeStep = document.getElementById('code-step');
+    const phoneInput = document.getElementById('phone');
+    const codeInput = document.getElementById('code');
+    const sendCodeBtn = document.getElementById('send-code-btn');
+    const verifyBtn = document.getElementById('verify-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const phoneError = document.getElementById('phone-error');
+    const codeError = document.getElementById('code-error');
 
-        if (!data.length) {
-          app.className = 'empty';
-          app.textContent = 'No connections yet. Send a WhatsApp message to add one!';
-          count.textContent = '0 connections';
-          return;
-        }
+    let currentPhone = '';
 
-        count.textContent = data.length + ' connection' + (data.length === 1 ? '' : 's');
-        app.className = 'grid';
-        app.innerHTML = data.map(c => {
-          const phone = c.phone
-            ? `<a class="card-phone" href="tel:${c.phone}">${c.phone}</a>`
-            : '';
+    // Check if already logged in
+    fetch('/auth/me')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(() => showDashboard())
+      .catch(() => showLogin());
 
-          const events = (c.events || []).map(e => {
-            const d = new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const cls = e.name.toLowerCase() === 'birthday' ? 'event-birthday' : 'event-other';
-            return `<span class="event-badge ${cls}">${e.name} &middot; ${d}</span>`;
+    function showLogin() {
+      loginView.classList.remove('hidden');
+      dashboardView.classList.add('hidden');
+    }
+
+    function showDashboard() {
+      loginView.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
+      loadConnections();
+    }
+
+    // Send code
+    sendCodeBtn.addEventListener('click', async () => {
+      const phone = phoneInput.value.trim().replace(/[\s\-()]/g, '');
+      if (!phone) return;
+
+      phoneError.style.display = 'none';
+      sendCodeBtn.disabled = true;
+      sendCodeBtn.textContent = 'Sending...';
+
+      try {
+        const res = await fetch('/auth/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        currentPhone = phone;
+        phoneStep.classList.add('hidden');
+        codeStep.classList.remove('hidden');
+        codeInput.focus();
+      } catch (err) {
+        phoneError.textContent = err.message || 'Failed to send code';
+        phoneError.style.display = 'block';
+      } finally {
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = 'Send code';
+      }
+    });
+
+    // Verify code
+    verifyBtn.addEventListener('click', async () => {
+      const code = codeInput.value.trim();
+      if (!code) return;
+
+      codeError.style.display = 'none';
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: currentPhone, code }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        showDashboard();
+      } catch (err) {
+        codeError.textContent = err.message || 'Verification failed';
+        codeError.style.display = 'block';
+      } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify';
+      }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/auth/logout', { method: 'POST' });
+      phoneStep.classList.remove('hidden');
+      codeStep.classList.add('hidden');
+      phoneInput.value = '';
+      codeInput.value = '';
+      showLogin();
+    });
+
+    // Load connections
+    function loadConnections() {
+      const app = document.getElementById('app');
+      const count = document.getElementById('count');
+      app.innerHTML = '<div class="empty">Loading...</div>';
+
+      fetch('/connections')
+        .then(r => r.json())
+        .then(data => {
+          if (!data.length) {
+            app.className = 'empty';
+            app.innerHTML = 'No connections yet. Send a WhatsApp message to add one!';
+            count.textContent = '0 connections';
+            return;
+          }
+
+          count.textContent = data.length + ' connection' + (data.length === 1 ? '' : 's');
+          app.className = 'grid';
+          app.innerHTML = data.map(c => {
+            const phone = c.phone
+              ? `<a class="card-phone" href="tel:${c.phone}">${c.phone}</a>`
+              : '';
+
+            const events = (c.events || []).map(e => {
+              const d = new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const cls = e.name.toLowerCase() === 'birthday' ? 'event-birthday' : 'event-other';
+              return `<span class="event-badge ${cls}">${e.name} &middot; ${d}</span>`;
+            }).join('');
+
+            return `
+              <div class="card">
+                <div class="card-name">${c.name}</div>
+                ${phone}
+                <div class="card-summary">${c.summary}</div>
+                ${events ? `<div class="events">${events}</div>` : ''}
+              </div>`;
           }).join('');
-
-          return `
-            <div class="card">
-              <div class="card-name">${c.name}</div>
-              ${phone}
-              <div class="card-summary">${c.summary}</div>
-              ${events ? `<div class="events">${events}</div>` : ''}
-            </div>`;
-        }).join('');
-      })
-      .catch(() => {
-        document.getElementById('app').textContent = 'Failed to load connections.';
-      });
+        })
+        .catch(() => {
+          app.innerHTML = '<div class="empty">Failed to load connections.</div>';
+        });
+    }
   </script>
 </body>
 </html>

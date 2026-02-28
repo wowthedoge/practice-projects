@@ -8,10 +8,17 @@ export interface ConnectionEvent {
 
 export interface Connection {
   _id?: ObjectId;
+  owner: string;
   name: string;
   phone: string | null;
   summary: string;
   events: ConnectionEvent[];
+}
+
+export interface Session {
+  token: string;
+  phone: string;
+  expiresAt: Date;
 }
 
 export interface Reminder {
