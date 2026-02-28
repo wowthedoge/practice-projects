@@ -98,3 +98,77 @@
     border-radius: 4px;
     margin-top: 20px;
   }
+
+  .credentials {
+    margin-bottom: 20px;
+  }
+
+  .credentials label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+
+  .login-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  .bearer-btn {
+    background: #6c757d;
+  }
+
+  .bearer-btn:hover {
+    background: #5a6268;
+  }
+
+  .dpop-btn {
+    background: #28a745;
+  }
+
+  .dpop-btn:hover {
+    background: #218838;
+  }
+
+  .hint {
+    font-size: 13px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .token-badge {
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  .token-badge.bearer {
+    background: #ffc107;
+    color: #333;
+  }
+
+  .token-badge.dpop {
+    background: #28a745;
+    color: white;
+  }
+
+  .warning {
+    background: #fff3cd;
+    color: #856404;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    font-size: 14px;
+  }
+
+  .success {
+    background: #d4edda;
+    color: #155724;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    font-size: 14px;
+  }

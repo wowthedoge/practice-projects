@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"time"
@@ -35,6 +36,7 @@ func ValidateDPoPMiddleware() gin.HandlerFunc {
 
 		jkt, err := validateDPoPProof(dpopProof, method, url)
 		if err != nil {
+			log.Printf("DPoP validation failed: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			c.Abort()
 			return
@@ -112,11 +114,11 @@ func jwkToECDSAPublicKey(jwk map[string]interface{}) (*ecdsa.PublicKey, error) {
 		return nil, errors.New("Unsupported key type, expected EC P-256")
 	}
 
-	xBytes, err := base64.URLEncoding.DecodeString(jwk["x"].(string))
+	xBytes, err := base64.RawURLEncoding.DecodeString(jwk["x"].(string))
 	if err != nil {
 		return nil, errors.New("Failed to decode x coordinate of key")
 	}
-	yBytes, err := base64.URLEncoding.DecodeString(jwk["y"].(string))
+	yBytes, err := base64.RawURLEncoding.DecodeString(jwk["y"].(string))
 	if err != nil {
 		return nil, errors.New("Failed to decode y coordinate of key")
 	}
