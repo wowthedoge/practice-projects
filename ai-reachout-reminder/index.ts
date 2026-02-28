@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { loadConnections } from "./store.js";
+import { loadConnections, closeDb } from "./store.js";
 import type { Connection, Reminder } from "./types.js";
 
 // Find events that need a reachout today.
@@ -61,7 +61,7 @@ Write a brief, natural text message (2-3 sentences max). ${reminder.daysSince ==
 
 // Main
 async function main() {
-  const connections = loadConnections();
+  const connections = await loadConnections();
   const reminders = findReachouts(connections);
 
   if (reminders.length === 0) {
@@ -93,4 +93,6 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main()
+  .catch(console.error)
+  .finally(() => closeDb());

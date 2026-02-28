@@ -1,29 +1,32 @@
-import { readFileSync, writeFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
+import { MongoClient, type Collection } from "mongodb";
 import type { Connection } from "./types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONNECTIONS_PATH = resolve(__dirname, "connections.json");
+const MONGO_URL = process.env.MONGO_URL || "mongodb://localhost:27017";
+const DB_NAME = "reachout";
 
-export function loadConnections(): Connection[] {
-  return JSON.parse(readFileSync(CONNECTIONS_PATH, "utf-8"));
+let client: MongoClient;
+
+export async function getCollection(): Promise<Collection<Connection>> {
+  if (!client) {
+    client = new MongoClient(MONGO_URL);
+    await client.connect();
+  }
+  return client.db(DB_NAME).collection<Connection>("connections");
 }
 
-export function saveConnections(connections: Connection[]): void {
-  writeFileSync(CONNECTIONS_PATH, JSON.stringify(connections, null, 2) + "\n");
+export async function loadConnections(): Promise<Connection[]> {
+  const col = await getCollection();
+  return col.find().toArray();
 }
 
-export function addConnection(
-  connection: Omit<Connection, "id">
-): Connection {
-  const connections = loadConnections();
-  const newConnection: Connection = {
-    id: randomUUID(),
-    ...connection,
-  };
-  connections.push(newConnection);
-  saveConnections(connections);
-  return newConnection;
+export async function addConnection(
+  connection: Omit<Connection, "_id">
+): Promise<Connection> {
+  const col = await getCollection();
+  const result = await col.insertOne(connection as Connection);
+  return { ...connection, _id: result.insertedId };
+}
+
+export async function closeDb(): Promise<void> {
+  if (client) await client.close();
 }

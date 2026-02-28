@@ -1,22 +1,8 @@
 # AI Reachout Reminder - MVP Plan
 
 ## What it does
-1. **Server** (`npm start`): HTTP server with `POST /add` — accepts freeform text, Claude parses it into a Connection, saves to JSON.
-2. **Daily check** (`npm run check`): Reads connections, finds events needing reachout today, Claude crafts personalized messages, prints to terminal.
-
-## Data: `connections.json`
-```json
-[{
-  "id": "...",
-  "name": "...",
-  "phone": "...",
-  "summary": "...",
-  "events": [
-    { "date": "2026-03-15T00:00:00Z", "name": "Birthday", "summary": "" },
-    { "date": "2026-03-10T00:00:00Z", "name": "AWS Summit", "summary": "they're attending" }
-  ]
-}]
-```
+1. **Server** (`npm start`): HTTP server with `POST /add` — accepts freeform text, Claude parses it into a Connection, saves to MongoDB.
+2. **Daily check** (`npm run check`): Reads connections from MongoDB, finds events needing reachout today, Claude crafts personalized messages, prints to terminal.
 
 ## Types
 ```ts
@@ -27,7 +13,7 @@ interface ConnectionEvent {
 }
 
 interface Connection {
-  id: string;
+  _id?: ObjectId;     // MongoDB-generated
   name: string;
   phone: string | null;
   summary: string;    // freeform context about the person
@@ -36,13 +22,14 @@ interface Connection {
 ```
 
 ## Stack
-- TypeScript CLI script (`index.ts`)
+- TypeScript (`index.ts`, `server.ts`)
 - Anthropic SDK (`@anthropic-ai/sdk`)
+- MongoDB (via `mongodb` driver)
 - tsx to run directly
-- No DB, no auth, no sending — just print
+- No auth, no sending — just print
 
 ## Logic
-1. Load `connections.json`
+1. Load connections from MongoDB
 2. Find events needing reachout today:
    - **Birthdays**: reachout on the same day (`daysSince === 0`)
    - **Other events**: reachout 3 days after (`daysSince === 3`)
@@ -61,7 +48,10 @@ curl -X POST http://localhost:3000/add \
 - `server.ts` — HTTP server with POST /add
 - `index.ts` — daily reachout checker
 - `parse.ts` — Claude-powered freeform text → Connection parser
-- `store.ts` — read/write connections.json
+- `store.ts` — MongoDB connection and CRUD
 - `types.ts` — shared types
-- `connections.json` — seed data
-- `package.json` — anthropic sdk, tsx
+- `package.json` — anthropic sdk, mongodb, tsx
+
+## Env vars
+- `ANTHROPIC_API_KEY` — Claude API key
+- `MONGO_URL` — MongoDB connection string (default: `mongodb://localhost:27017`)

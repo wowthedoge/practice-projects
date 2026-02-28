@@ -1,3 +1,5 @@
+import type { ObjectId } from "mongodb";
+
 export interface ConnectionEvent {
   date: string;
   name: string;
@@ -5,7 +7,7 @@ export interface ConnectionEvent {
 }
 
 export interface Connection {
-  id: string;
+  _id?: ObjectId;
   name: string;
   phone: string | null;
   summary: string;
