@@ -110,6 +110,7 @@ func detectAESinECBorCBC(ciphertext []byte) string {
 		if seen {
 			return "ECB"
 		}
+		store[string(block)] = 0
 	}
 	return "CBC"
 }
@@ -127,14 +128,67 @@ func encryptionOracle(plaintext []byte) []byte {
 	return encryptAESinCBC(plaintext, key, 16, iv)
 }
 
-func main() {
-	plaintext := []byte(`
-	Play that funky music Come on, Come on, let me hear
-Play that funky music white boy you say it, say it
-Play that funky music A little louder now
-Play that funky music, white boy Come on, Come on, Come on
-Play that funky music`)
-	ciphertext := encryptionOracle(plaintext)
-	fmt.Println(detectAESinECBorCBC(ciphertext))
+func encryptionOracle14(prefix []byte, plaintext []byte, key []byte) []byte {
+	payload := append(prefix, plaintext...)
+	return encryptAESinECB(payload, key, 16)
+}
 
+func dictionaryWithPrefix(prefix string, key []byte) map[string]string {
+	dict := make(map[string]string)
+	for i := range 256 {
+		plaintext := append([]byte(prefix), byte(i))
+		encrypted := encryptAESinECB(plaintext, key, 16)[:16]
+		dict[string(encrypted)] = string(i)
+	}
+	return dict
+}
+
+func challenge14() {
+
+	target := []byte("Byte-at-a-time ECB decryption (Harder)")
+	key := generateRandomBytes(16)
+	prefix := make([]byte, rand.N(64)+1)
+	crand.Read(prefix)
+
+	// detect a full block of A
+	fullAencrypted := encryptAESinECB([]byte(strings.Repeat("A", 16)), key, 16)[:16]
+
+	var fullAStartsAt int
+	var AsNeeded int
+	for i := range 32 {
+		attackerBytes := []byte(strings.Repeat("A", i))
+		plaintext := append(attackerBytes, target...)
+		encrypted := encryptionOracle14(prefix, plaintext, key)
+		var found bool
+		for j := 0; j < len(encrypted); j += 16 {
+			block := encrypted[j:min(j+16, len(encrypted))]
+			if bytes.Equal(block, fullAencrypted) {
+				fullAStartsAt = j
+				AsNeeded = i
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+
+	decrypted := ""
+
+	for i := range 1 {
+		dict := dictionaryWithPrefix(strings.Repeat("A", 15-i)+decrypted, key)
+		attackerBytes := []byte(strings.Repeat("A", AsNeeded-1))
+		plaintext := append(attackerBytes, target...)
+
+		enc := encryptionOracle14(prefix, plaintext, key)
+		firstBlock := enc[fullAStartsAt : fullAStartsAt+16]
+		decrypted += dict[string(firstBlock)]
+		fmt.Println(dict[string(firstBlock)])
+	}
+
+}
+
+func main() {
+	challenge14()
 }
